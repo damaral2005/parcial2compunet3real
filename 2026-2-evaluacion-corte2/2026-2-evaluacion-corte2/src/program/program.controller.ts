@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ProgramService } from './program.service';
+import { BulkCreateProgramDto } from './dto/bulk-create-program.dto';
 import { CreateProgramDto } from './dto/create-program.dto';
 import { AssignStudentsDto } from './dto/assign-students.dto';
 import { ProgramPaginationDto } from './dto/program-pagination.dto';
@@ -31,6 +32,9 @@ export class ProgramController {
     return this.programService.assignStudents(id, assignStudentsDto);
   }
 
-  // TODO Reto 3: creacion en lote.
+  @Post('bulk')
+  bulkCreate(@Body() bulkCreateProgramDto: BulkCreateProgramDto) {
+    return this.programService.bulkCreate(bulkCreateProgramDto);
+  }
   // TODO Reto 4: autenticacion y autorizacion.
 }

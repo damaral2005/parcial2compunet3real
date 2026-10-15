@@ -6,6 +6,7 @@ import { PaginationDto } from '../student/dto/pagination.dto';
 import { Program } from './entities/program.entity';
 import { CreateProgramDto } from './dto/create-program.dto';
 import { AssignStudentsDto } from './dto/assign-students.dto';
+import { BulkCreateProgramDto } from './dto/bulk-create-program.dto';
 
 @Injectable()
 export class ProgramService {
@@ -98,5 +99,29 @@ export class ProgramService {
     }
   }
 
-  // TODO Reto 3: creacion en lote.
+  async bulkCreate(bulkCreateProgramDto: BulkCreateProgramDto): Promise<Program[]> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
+      const programs = bulkCreateProgramDto.programs.map((programDto) =>
+        queryRunner.manager.create(Program, programDto),
+      );
+      const savedPrograms = await queryRunner.manager.save(programs);
+
+      await queryRunner.commitTransaction();
+      return savedPrograms;
+    } catch (error) {
+      if (queryRunner.isTransactionActive) {
+        await queryRunner.rollbackTransaction();
+      }
+      if (error instanceof QueryFailedError && error.driverError.code === '23505') {
+        throw new ConflictException('Ya existe un programa con ese nombre o codigo');
+      }
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
 }
