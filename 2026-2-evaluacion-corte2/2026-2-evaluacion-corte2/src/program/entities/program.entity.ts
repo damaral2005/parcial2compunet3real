@@ -24,6 +24,8 @@ export class Program {
         type: "text",
         unique: true
     })
-    name: string;
+    code: string;
 
+    @Column("int")
+    credits: number;
 }
