@@ -1,7 +1,15 @@
-// TODO Reto 1: reglas de validación con class-validator
-//   - name: string, mínimo 3 caracteres
-//   - code: string de 3 a 6 letras MAYÚSCULAS (ej. "SIS", "MED")
-//   - credits: entero positivo
-export class CreateProgramDto {
+import { IsInt, IsPositive, IsString, Matches, MinLength } from 'class-validator';
 
+export class CreateProgramDto {
+  @IsString()
+  @MinLength(3)
+  name: string;
+
+  @IsString()
+  @Matches(/^[A-Z]{3,6}$/)
+  code: string;
+
+  @IsInt()
+  @IsPositive()
+  credits: number;
 }

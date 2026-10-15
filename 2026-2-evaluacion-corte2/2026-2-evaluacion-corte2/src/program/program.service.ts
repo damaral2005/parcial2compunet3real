@@ -1,23 +1,102 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource, QueryFailedError, Repository } from 'typeorm';
+import { Student } from '../student/entities/student.entity';
+import { PaginationDto } from '../student/dto/pagination.dto';
+import { Program } from './entities/program.entity';
+import { CreateProgramDto } from './dto/create-program.dto';
+import { AssignStudentsDto } from './dto/assign-students.dto';
 
 @Injectable()
 export class ProgramService {
+  constructor(
+    @InjectRepository(Program)
+    private readonly programRepository: Repository<Program>,
+    private readonly dataSource: DataSource,
+  ) {}
 
-    // TODO Reto 1: inyecta el repositorio de Program (y lo que necesites para las transacciones)
+  async create(createProgramDto: CreateProgramDto): Promise<Program> {
+    try {
+      const program = this.programRepository.create(createProgramDto);
+      return await this.programRepository.save(program);
+    } catch (error) {
+      if (error instanceof QueryFailedError && error.driverError.code === '23505') {
+        throw new ConflictException('Ya existe un programa con ese nombre o codigo');
+      }
+      throw error;
+    }
+  }
 
-    // TODO Reto 1: create(createProgramDto, user) -> guarda el programa
-    //   - nombre o código repetido -> 409 Conflict (no 500)
+  findAll(paginationDto: PaginationDto): Promise<Program[]> {
+    const { limit = 5, skip = 0 } = paginationDto;
+    return this.programRepository.find({
+      take: limit,
+      skip,
+      order: { id: 'ASC' },
+    });
+  }
 
-    // TODO Reto 1: findAll(paginationDto) -> lista paginada (limit / skip)
+  async findOne(id: string): Promise<Program> {
+    const program = await this.programRepository.findOne({
+      where: { id },
+      relations: { students: true },
+    });
+    if (!program) {
+      throw new NotFoundException(`Program with id ${id} not found`);
+    }
+    return program;
+  }
 
-    // TODO Reto 2: findOne(id) -> programa con sus estudiantes, 404 si no existe
+  async assignStudents(id: string, assignStudentsDto: AssignStudentsDto): Promise<Program> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
 
-    // TODO Reto 2: assignStudents(id, assignStudentsDto) -> AGREGA estudiantes al programa
-    //   dentro de una transacción (QueryRunner), conservando los que ya tenía.
-    //   Mismo patrón del update de estudiantes corregido en clase (combinar las notas):
-    //   traer los actuales -> combinar con los nuevos -> guardar la lista completa.
-    //   Si algún id no existe: 404 y rollback.
+      const program = await queryRunner.manager.findOne(Program, {
+        where: { id },
+        relations: { students: true },
+      });
+      if (!program) {
+        throw new NotFoundException(`Program with id ${id} not found`);
+      }
 
-    // TODO Reto 3: bulkCreate(bulkCreateProgramDto, user) -> crea todos los programas o ninguno
-    //   (transacción). Cualquier nombre/código repetido -> 409 y rollback.
+      const students = new Map(
+        (program.students ?? []).map((student) => [student.id.toLowerCase(), student]),
+      );
+      for (const studentId of assignStudentsDto.studentIds) {
+        const key = studentId.toLowerCase();
+        if (students.has(key)) continue;
+
+        const student = await queryRunner.manager.findOneBy(Student, { id: studentId });
+        if (!student) {
+          throw new NotFoundException(`Student with id ${studentId} not found`);
+        }
+        students.set(key, student);
+      }
+
+      program.students = [...students.values()];
+      await queryRunner.manager.save(program);
+
+      const result = await queryRunner.manager.findOne(Program, {
+        where: { id },
+        relations: { students: true },
+      });
+      if (!result) {
+        throw new NotFoundException(`Program with id ${id} not found`);
+      }
+
+      await queryRunner.commitTransaction();
+      return result;
+    } catch (error) {
+      if (queryRunner.isTransactionActive) {
+        await queryRunner.rollbackTransaction();
+      }
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  // TODO Reto 3: creacion en lote.
 }
