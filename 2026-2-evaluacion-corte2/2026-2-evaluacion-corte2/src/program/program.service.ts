@@ -7,6 +7,7 @@ import { Program } from './entities/program.entity';
 import { CreateProgramDto } from './dto/create-program.dto';
 import { AssignStudentsDto } from './dto/assign-students.dto';
 import { BulkCreateProgramDto } from './dto/bulk-create-program.dto';
+import { User } from '../user/entities/user.entity';
 
 @Injectable()
 export class ProgramService {
@@ -16,9 +17,12 @@ export class ProgramService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async create(createProgramDto: CreateProgramDto): Promise<Program> {
+  async create(createProgramDto: CreateProgramDto, user: User): Promise<Program> {
     try {
-      const program = this.programRepository.create(createProgramDto);
+      const program = this.programRepository.create({
+        ...createProgramDto,
+        createdBy: { id: user.id },
+      });
       return await this.programRepository.save(program);
     } catch (error) {
       if (error instanceof QueryFailedError && error.driverError.code === '23505') {
@@ -99,14 +103,17 @@ export class ProgramService {
     }
   }
 
-  async bulkCreate(bulkCreateProgramDto: BulkCreateProgramDto): Promise<Program[]> {
+  async bulkCreate(bulkCreateProgramDto: BulkCreateProgramDto, user: User): Promise<Program[]> {
     const queryRunner = this.dataSource.createQueryRunner();
     try {
       await queryRunner.connect();
       await queryRunner.startTransaction();
 
       const programs = bulkCreateProgramDto.programs.map((programDto) =>
-        queryRunner.manager.create(Program, programDto),
+        queryRunner.manager.create(Program, {
+          ...programDto,
+          createdBy: { id: user.id },
+        }),
       );
       const savedPrograms = await queryRunner.manager.save(programs);
 

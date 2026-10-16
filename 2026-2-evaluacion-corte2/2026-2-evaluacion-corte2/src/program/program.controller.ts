@@ -4,14 +4,22 @@ import { BulkCreateProgramDto } from './dto/bulk-create-program.dto';
 import { CreateProgramDto } from './dto/create-program.dto';
 import { AssignStudentsDto } from './dto/assign-students.dto';
 import { ProgramPaginationDto } from './dto/program-pagination.dto';
+import { Auth } from '../user/decorators/auth.decorator';
+import { GetUser } from '../user/decorators/get-user.decorator';
+import { ValidRoles } from '../user/enums/valid-roles.enum';
+import { User } from '../user/entities/user.entity';
 
 @Controller('program')
 export class ProgramController {
   constructor(private readonly programService: ProgramService) {}
 
   @Post()
-  create(@Body() createProgramDto: CreateProgramDto) {
-    return this.programService.create(createProgramDto);
+  @Auth(ValidRoles.admin)
+  create(
+    @Body() createProgramDto: CreateProgramDto,
+    @GetUser() user: User,
+  ) {
+    return this.programService.create(createProgramDto, user);
   }
 
   @Get()
@@ -25,6 +33,7 @@ export class ProgramController {
   }
 
   @Patch(':id/students')
+  @Auth(ValidRoles.admin)
   assignStudents(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() assignStudentsDto: AssignStudentsDto,
@@ -33,8 +42,11 @@ export class ProgramController {
   }
 
   @Post('bulk')
-  bulkCreate(@Body() bulkCreateProgramDto: BulkCreateProgramDto) {
-    return this.programService.bulkCreate(bulkCreateProgramDto);
+  @Auth(ValidRoles.admin)
+  bulkCreate(
+    @Body() bulkCreateProgramDto: BulkCreateProgramDto,
+    @GetUser() user: User,
+  ) {
+    return this.programService.bulkCreate(bulkCreateProgramDto, user);
   }
-  // TODO Reto 4: autenticacion y autorizacion.
 }
